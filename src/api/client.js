@@ -15,10 +15,21 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (res) => res,
     (err) => {
-        if (err?.response?.status === 401) {
-            localStorage.removeItem("accessToken");
-            window.location.href = "/login";
-        }
+        // 🔍 DEBUG MODE: log the real error instead of force-logging out
+        const status = err?.response?.status;
+        const url = err?.config?.url;
+        const method = err?.config?.method;
+        const data = err?.response?.data;
+
+        console.error("API ERROR:", {
+            status,
+            method,
+            url,
+            data,
+        });
+
+        // ❌ DO NOT auto-logout yet — this was hiding the real problem
+        // We will re-enable this after backend is fully stable
         return Promise.reject(err);
     }
 );

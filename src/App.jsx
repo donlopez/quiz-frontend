@@ -3,6 +3,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import VerifyEmail from "./pages/VerifyEmail"; // ✅ ADD THIS
 import SelectTest from "./pages/SelectTest";
 import QuizRunner from "./pages/QuizRunner";
 import Results from "./pages/Results";
@@ -13,9 +14,12 @@ export default function App() {
             <Routes>
                 <Route path="/" element={<Navigate to="/select-test" replace />} />
 
+                {/* ✅ Public routes */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/verify-email" element={<VerifyEmail />} />
 
+                {/* ✅ Protected routes */}
                 <Route
                     path="/select-test"
                     element={
@@ -43,6 +47,7 @@ export default function App() {
                     }
                 />
 
+                {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </BrowserRouter>

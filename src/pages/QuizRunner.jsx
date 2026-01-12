@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-    getSession,
-    submitAnswers,
-    finishQuiz,
-} from "../api/quizService";
+import { getSession, submitAnswers, finishQuiz } from "../api/quizService";
 
 export default function QuizRunner() {
     const { sessionId } = useParams();
@@ -19,32 +15,49 @@ export default function QuizRunner() {
 
     useEffect(() => {
         loadSession();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionId]);
 
     async function loadSession() {
+        setLoading(true);
+        setError("");
         try {
             const data = await getSession(sessionId);
             setSession(data);
         } catch (err) {
-            setError("Failed to load quiz session.");
+            const msg =
+                err?.response?.data?.message ||
+                err?.message ||
+                "Failed to load quiz session.";
+            setError(msg);
         } finally {
             setLoading(false);
         }
     }
 
     if (loading) return <p style={{ padding: 16 }}>Loading quiz...</p>;
-    if (error) return <p style={{ color: "crimson" }}>{error}</p>;
+    if (error) return <p style={{ color: "crimson", padding: 16 }}>{error}</p>;
     if (!session) return null;
 
-    const questions = session.questions;
+    const questions = session.questions || [];
     const question = questions[currentIndex];
     const qId = question.questionId;
 
+    // ✅ Fix #2: Support backend field naming
+    const questionText =
+        question.text ?? question.questionText ?? "(Missing question text)";
+
+    const isMulti =
+        Boolean(question.multiCorrect) ||
+        Boolean(question.isMultiCorrect) ||
+        Boolean(question.is_multi_correct);
+
     function toggleChoice(choiceId) {
+        setError("");
         const prev = selected[qId] || [];
 
-        if (question.multiCorrect) {
-            // toggle checkbox
+        if (isMulti) {
+            // checkbox toggle
             setSelected({
                 ...selected,
                 [qId]: prev.includes(choiceId)
@@ -52,7 +65,7 @@ export default function QuizRunner() {
                     : [...prev, choiceId],
             });
         } else {
-            // radio (single choice)
+            // radio (single)
             setSelected({
                 ...selected,
                 [qId]: [choiceId],
@@ -61,22 +74,35 @@ export default function QuizRunner() {
     }
 
     async function handleNext() {
-        const answers = (selected[qId] || []).map((choiceId) => ({
-            questionId: qId,
-            selectedChoiceIds: [choiceId],
-        }));
+        setError("");
+
+        const chosen = selected[qId] || [];
+        if (chosen.length === 0) return;
+
+        // ✅ Fix #1: Submit ONE answer object per question
+        const answers = [
+            {
+                questionId: qId,
+                selectedChoiceIds: chosen,
+            },
+        ];
 
         try {
-            await submitAnswers(sessionId, answers);
+            await submitAnswers(Number(sessionId), answers);
 
             if (currentIndex + 1 < questions.length) {
                 setCurrentIndex(currentIndex + 1);
             } else {
-                await finishQuiz(sessionId);
+                await finishQuiz(Number(sessionId));
                 navigate(`/results/${sessionId}`);
             }
         } catch (err) {
-            setError("Failed to submit answer.");
+            const msg =
+                err?.response?.data?.message ||
+                err?.response?.data?.error ||
+                err?.message ||
+                "Failed to submit answer.";
+            setError(msg);
         }
     }
 
@@ -86,22 +112,28 @@ export default function QuizRunner() {
                 Question {currentIndex + 1} of {questions.length}
             </h2>
 
-            <p style={{ marginBottom: 12 }}>{question.questionText}</p>
+            <p style={{ marginBottom: 12 }}>{questionText}</p>
 
             <div style={{ display: "grid", gap: 8 }}>
-                {question.choices.map((c) => (
-                    <label key={c.choiceId} style={{ display: "flex", gap: 8 }}>
-                        <input
-                            type={question.multiCorrect ? "checkbox" : "radio"}
-                            name={`q-${qId}`}
-                            checked={(selected[qId] || []).includes(c.choiceId)}
-                            onChange={() => toggleChoice(c.choiceId)}
-                        />
-                        <span>
-              <strong>{c.label}.</strong> {c.text}
-            </span>
-                    </label>
-                ))}
+                {(question.choices || []).map((c) => {
+                    const choiceText = c.text ?? c.choiceText ?? "";
+                    const choiceLabel = c.label ?? c.choiceLabel ?? "";
+
+                    return (
+                        <label key={c.choiceId} style={{ display: "flex", gap: 8 }}>
+                            <input
+                                type={isMulti ? "checkbox" : "radio"}
+                                name={`q-${qId}`}
+                                checked={(selected[qId] || []).includes(c.choiceId)}
+                                onChange={() => toggleChoice(c.choiceId)}
+                            />
+                            <span>
+                {choiceLabel ? <strong>{choiceLabel}.</strong> : null}{" "}
+                                {choiceText}
+              </span>
+                        </label>
+                    );
+                })}
             </div>
 
             {error && (
@@ -118,4 +150,3 @@ export default function QuizRunner() {
         </div>
     );
 }
-
